@@ -1,6 +1,6 @@
 // Helpers
 type MergeBy<T, K> = Omit<T, keyof K> & K;
-type StringMap = { [key: string]: any };
+type StringMap = Record<string, any>;
 type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void
   ? I
   : never;
@@ -18,17 +18,16 @@ export interface CustomTypeOptions {}
  *
  * Usage:
  * ```ts
- * // react-i18next.d.ts
- * import 'react-i18next';
- * declare module 'react-i18next' {
+ * // i18next.d.ts
+ * import 'i18next';
+ * declare module 'i18next' {
  *   interface CustomTypeOptions {
  *     defaultNS: 'custom';
  *     returnNull: false;
  *     returnEmptyString: false;
  *     nsSeparator: ':';
  *     keySeparator: '.';
- *     jsonFormat: 'v4';
- *     allowObjectInHTMLChildren: false;
+ *     compatibilityJSON: 'v4';
  *     resources: {
  *       custom: {
  *         foo: 'foo';
@@ -76,13 +75,6 @@ export type TypeOptions = MergeBy<
      * Resources to initialize with
      */
     resources: object;
-
-    /**
-     * Flag that allows HTML elements to receive objects. This is only useful for React applications
-     * where you pass objects to HTML elements so they can be replaced to their respective interpolation
-     * values (mostly with Trans component)
-     */
-    allowObjectInHTMLChildren: false;
   },
   CustomTypeOptions
 >;
