@@ -9,11 +9,11 @@
     "strict": true,
     "noEmit": true,
     "baseUrl": ".",
-    "paths": { "i18next": ["./index.d.ts"] },
+    "paths": { "i18next": ["ts4.1/index.d.ts"] },
 
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": ["./index.d.ts", "./test/**/*.ts*"],
+  "include": ["ts4.1/index.d.ts", "./test/**/*.ts*"],
   "exclude": ["test/typescript/nonEsModuleInterop/**/*.ts"]
 }

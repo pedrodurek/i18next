@@ -13,6 +13,13 @@
       "types": "./index.d.ts"
     }
   },
+  "typesVersions": {
+    ">=4.1": {
+      "*": [
+        "ts4.1/*"
+      ]
+    }
+  },
   "keywords": [
     "i18next",
     "internationalization",
