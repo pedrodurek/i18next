@@ -145,7 +145,7 @@ class Interpolator {
         const safeValue = todo.safeValue(value);
         str = str.replace(match[0], safeValue);
         if (skipOnVariables) {
-          todo.regex.lastIndex += safeValue.length;
+          todo.regex.lastIndex += value.length;
           todo.regex.lastIndex -= match[0].length;
         } else {
           todo.regex.lastIndex = 0;
@@ -177,7 +177,14 @@ class Interpolator {
       let optionsString = `{${c[1]}`;
       key = c[0];
       optionsString = this.interpolate(optionsString, clonedOptions);
-      optionsString = optionsString.replace(/'/g, '"');
+      const matchedSingleQuotes = optionsString.match(/'/g);
+      const matchedDoubleQuotes = optionsString.match(/"/g);
+      if (
+        (matchedSingleQuotes && matchedSingleQuotes.length % 2 === 0 && !matchedDoubleQuotes) ||
+        matchedDoubleQuotes.length % 2 !== 0
+      ) {
+        optionsString = optionsString.replace(/'/g, '"');
+      }
 
       try {
         clonedOptions = JSON.parse(optionsString);

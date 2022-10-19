@@ -1,21 +1,126 @@
-type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
+// Helpers
 type MergeBy<T, K> = Omit<T, keyof K> & K;
+type StringMap = { [key: string]: any };
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (k: infer I) => void
+  ? I
+  : never;
+type LastOf<T> = UnionToIntersection<T extends any ? () => T : never> extends () => infer R
+  ? R
+  : never;
 
-export interface FallbackLngObjList {
-  [language: string]: readonly string[];
-}
+/**
+ * This interface can be augmented by users to add types to `i18next` default TypeOptions.
+ */
+export interface CustomTypeOptions {}
 
-export type FallbackLng =
-  | string
-  | readonly string[]
-  | FallbackLngObjList
-  | ((code: string) => string | readonly string[] | FallbackLngObjList);
+/**
+ * This interface can be augmented by users to add types to `i18next` default PluginOptions.
+ *
+ * Usage:
+ * ```ts
+ * // react-i18next.d.ts
+ * import 'react-i18next';
+ * declare module 'react-i18next' {
+ *   interface CustomTypeOptions {
+ *     defaultNS: 'custom';
+ *     returnNull: false;
+ *     returnEmptyString: false;
+ *     nsSeparator: ':';
+ *     keySeparator: '.';
+ *     jsonFormat: 'v4';
+ *     allowObjectInHTMLChildren: false;
+ *     resources: {
+ *       custom: {
+ *         foo: 'foo';
+ *       };
+ *     };
+ *   }
+ * }
+ * ```
+ */
+export interface CustomPluginOptions {}
 
-export type FormatFunction = (
+export type TypeOptions = MergeBy<
+  {
+    /**
+     * Allows null values as valid translation
+     */
+    returnNull: true;
+
+    /**
+     * Allows empty string as valid translation
+     */
+    returnEmptyString: true;
+
+    /**
+     * Char to separate keys
+     */
+    keySeparator: '.';
+
+    /**
+     * Char to split namespace from key
+     */
+    nsSeparator: ':';
+
+    /**
+     * Default namespace used if not passed to translation function
+     */
+    defaultNS: 'translation';
+
+    /**
+     * Json Format Version - V4 allows plural suffixes
+     */
+    jsonFormat: 'v4';
+
+    /**
+     * Resources to initialize with
+     */
+    resources: object;
+
+    /**
+     * Flag that allows HTML elements to receive objects. This is only useful for React applications
+     * where you pass objects to HTML elements so they can be replaced to their respective interpolation
+     * values (mostly with Trans component)
+     */
+    allowObjectInHTMLChildren: false;
+  },
+  CustomTypeOptions
+>;
+
+export type PluginOptions = MergeBy<
+  {
+    /**
+     * Options for language detection - check documentation of plugin
+     * @default undefined
+     */
+    detection?: object;
+
+    /**
+     * Options for backend - check documentation of plugin
+     * @default undefined
+     */
+    backend?: object;
+
+    /**
+     * Options for cache layer - check documentation of plugin
+     * @default undefined
+     */
+    cache?: object;
+
+    /**
+     * Options for i18n message format - check documentation of plugin
+     * @default undefined
+     */
+    i18nFormat?: object;
+  },
+  CustomPluginOptions
+>;
+
+type FormatFunction = (
   value: any,
   format?: string,
   lng?: string,
-  options?: InterpolationOptions & { [key: string]: any },
+  options?: InterpolationOptions & StringMap,
 ) => string;
 
 export interface InterpolationOptions {
@@ -124,6 +229,16 @@ export interface InterpolationOptions {
   skipOnVariables?: boolean;
 }
 
+export interface FallbackLngObjList {
+  [language: string]: readonly string[];
+}
+
+export type FallbackLng =
+  | string
+  | readonly string[]
+  | FallbackLngObjList
+  | ((code: string) => string | readonly string[] | FallbackLngObjList);
+
 export interface ReactOptions {
   /**
    * Set it to fallback to let passed namespaces to translated hoc act as fallbacks
@@ -179,40 +294,19 @@ export interface ReactOptions {
    * @default ''
    */
   transWrapTextNodes?: string;
+  /**
+   * Optional keyPrefix that will be automatically applied to returned t function in useTranslation for example.
+   * @default undefined
+   */
+  keyPrefix?: string;
+  /**
+   * Unescape function
+   * by default it unescapes some basic html entities
+   */
+  unescape?(str: string): string;
 }
 
-/**
- * This interface can be augmented by users to add types to `i18next` default PluginOptions.
- */
-export interface PluginOptions {}
-
-interface DefaultPluginOptions {
-  /**
-   * Options for language detection - check documentation of plugin
-   * @default undefined
-   */
-  detection?: object;
-
-  /**
-   * Options for backend - check documentation of plugin
-   * @default undefined
-   */
-  backend?: object;
-
-  /**
-   * Options for cache layer - check documentation of plugin
-   * @default undefined
-   */
-  cache?: object;
-
-  /**
-   * Options for i18n message format - check documentation of plugin
-   * @default undefined
-   */
-  i18nFormat?: object;
-}
-
-export interface InitOptions extends MergeBy<DefaultPluginOptions, PluginOptions> {
+export interface InitOptions extends PluginOptions {
   /**
    * Logs info level to console output. Helps finding issues with loading not working.
    * @default false
@@ -292,7 +386,7 @@ export interface InitOptions extends MergeBy<DefaultPluginOptions, PluginOptions
    * Default namespace used if not passed to translation function
    * @default 'translation'
    */
-  defaultNS?: string;
+  defaultNS?: string | false | readonly string[];
 
   /**
    * String or array of namespaces to lookup key if not found in given namespace.
@@ -301,10 +395,16 @@ export interface InitOptions extends MergeBy<DefaultPluginOptions, PluginOptions
   fallbackNS?: false | string | readonly string[];
 
   /**
-   * Calls save missing key function on backend if key not found
+   * Calls save missing key function on backend if key not found.
    * @default false
    */
   saveMissing?: boolean;
+
+  /**
+   * Calls save missing key function on backend if key not found also for plural forms.
+   * @default false
+   */
+  saveMissingPlurals?: boolean;
 
   /**
    * Experimental: enable to update default values using the saveMissing
@@ -470,87 +570,9 @@ export interface InitOptions extends MergeBy<DefaultPluginOptions, PluginOptions
 
   /**
    * Compatibility JSON version
-   * @default 'v3'
+   * @default 'v4'
    */
-  compatibilityJSON?: 'v1' | 'v2' | 'v3';
-
-  /**
-   * Options for https://github.com/locize/locize-editor
-   * @default undefined
-   */
-  editor?: {
-    /**
-     * Enable on init without the need of adding querystring locize=true
-     * @default false
-     */
-    enabled?: boolean;
-    /**
-     * If set to false you will need to open the editor via API
-     * @default true
-     */
-    autoOpen?: boolean;
-
-    /**
-     * Enable by adding querystring locize=true; can be set to another value or turned off by setting to false
-     * @default 'locize'
-     */
-    enableByQS?: string | false;
-
-    /**
-     * Turn on/off by pressing key combination. Combine this with `toggleKeyCode`
-     * @default 'ctrlKey'
-     */
-    toggleKeyModifier?: 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey';
-    /**
-     * Turn on/off by pressing key combination. Combine this with `toggleKeyModifier`
-     * @default 24 (x)
-     */
-    toggleKeyCode?: number;
-
-    /**
-     * Use lng in editor taken from query string, eg. if running with lng=cimode (i18next, locize)
-     * @default 'useLng'
-     */
-    lngOverrideQS?: string;
-
-    /**
-     * Use lng in editor, eg. if running with lng=cimode (i18next, locize)
-     * @default null
-     */
-    lngOverride?: string | null;
-
-    /**
-     * How the editor will open.
-     * Setting to window will open a new window/tab instead
-     * @default 'iframe'
-     */
-    mode?: 'iframe' | 'window';
-
-    /**
-     * Styles to adapt layout in iframe mode to your website layout.
-     * This will add a style to the `<iframe>`
-     * @default 'z-index: 2000; position: fixed; top: 0; right: 0; bottom: 0; width: 600px; box-shadow: -3px 0 5px 0 rgba(0,0,0,0.5);'
-     */
-    iframeContainerStyle?: string;
-    /**
-     * Styles to adapt layout in iframe mode to your website layout.
-     * This will add a style to the parent of `<iframe>`
-     * @default 'height: 100%; width: 600px; border: none;'
-     */
-    iframeStyle?: string;
-    /**
-     * Styles to adapt layout in iframe mode to your website layout.
-     * This will add a style to `<body>`
-     * @default 'margin-right: 605px;'
-     */
-    bodyStyle?: string;
-
-    /**
-     * Handle when locize saved the edited translations, eg. reload website
-     * @default noop
-     */
-    onEditorSaved?: (lng: null, ns: string | readonly string[]) => void;
-  };
+  compatibilityJSON?: 'v1' | 'v2' | 'v3' | 'v4';
 
   /**
    * Options for https://github.com/locize/locize-lastused
@@ -607,6 +629,23 @@ export interface InitOptions extends MergeBy<DefaultPluginOptions, PluginOptions
    * @default 10
    */
   maxParallelReads?: number;
+
+  /**
+   * The maximum number of retries to perform.
+   * Note that retries are only performed when a request has no response
+   * and throws an error.
+   * The default value is used if value is set below 0.
+   * @default 5
+   */
+  maxRetries?: number;
+
+  /**
+   * Set how long to wait, in milliseconds, betweeen retries of failed requests.
+   * This number is compounded by a factor of 2 for subsequent retry.
+   * The default value is used if value is set below 1ms.
+   * @default 350
+   */
+  retryTimeout?: number;
 }
 
 export interface TOptionsBase {
@@ -673,36 +712,86 @@ export interface TOptionsBase {
 }
 
 /**
- * indexer that is open to any value
- */
-export type StringMap = { [key: string]: any };
-
-/**
  * Options that allow open ended values for interpolation unless type is provided.
  */
 export type TOptions<TInterpolationMap extends object = StringMap> = TOptionsBase &
   TInterpolationMap;
 
-export type Callback = (error: any, t: TFunction) => void;
+type FallbackOrNS<F, T = keyof Resources> = [T] extends [never] ? F : T;
 
-/**
- * Uses similar args as the t function and returns true if a key exists.
- */
-export interface ExistsFunction<
-  TKeys extends string = string,
-  TInterpolationMap extends object = StringMap,
-> {
-  (key: TKeys | TKeys[], options?: TOptions<TInterpolationMap>): boolean;
-}
+type Resources = TypeOptions['resources'];
+type DefaultNamespace = TypeOptions['defaultNS'];
 
-export interface WithT {
+export type Namespace<T = FallbackOrNS<string>> = T | T[];
+
+type PluralSuffix = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+
+type WithOrWithoutPlural<K> = TypeOptions['jsonFormat'] extends 'v4'
+  ? K extends `${infer B}_${PluralSuffix}`
+    ? B | K
+    : K
+  : K;
+
+// Normalize single namespace
+export type KeysWithSeparator<K1, K2, S extends string = TypeOptions['keySeparator']> = `${K1 &
+  string}${S}${K2 & string}`;
+type KeysWithSeparator2<K1, K2> = KeysWithSeparator<K1, Exclude<K2, keyof any[]>>;
+type Normalize2<T, K = keyof T> = K extends keyof T
+  ? T[K] extends StringMap
+    ? T[K] extends readonly any[]
+      ?
+          | KeysWithSeparator2<K, WithOrWithoutPlural<keyof T[K]>>
+          | KeysWithSeparator2<K, Normalize2<T[K]>>
+      :
+          | KeysWithSeparator<K, WithOrWithoutPlural<keyof T[K]>>
+          | KeysWithSeparator<K, Normalize2<T[K]>>
+    : never
+  : never;
+type Normalize<T> = WithOrWithoutPlural<keyof T> | Normalize2<T>;
+
+// Normalize multiple namespaces
+type KeyWithNSSeparator<N, K, S extends string = TypeOptions['nsSeparator']> = `${N &
+  string}${S}${K & string}`;
+type NormalizeMulti<T, U extends keyof T, L = LastOf<U>> = L extends U
+  ? KeyWithNSSeparator<L, Normalize<T[L]>> | NormalizeMulti<T, Exclude<U, L>>
+  : never;
+
+// Normalize single namespace with key prefix
+type NormalizeWithKeyPrefix<
+  T,
+  K,
+  S extends string = TypeOptions['keySeparator'],
+> = K extends `${infer K1}${S}${infer K2}`
+  ? K1 extends keyof T
+    ? NormalizeWithKeyPrefix<T[K1], K2>
+    : never
+  : K extends keyof T
+  ? T[K] extends string
+    ? never
+    : Normalize<T[K]>
+  : never;
+
+export type KeyPrefix<N extends Namespace> =
+  | (N extends keyof Resources ? Normalize<Resources[N]> : string)
+  | undefined;
+
+export type TFuncKey<
+  N extends Namespace = DefaultNamespace,
+  TKPrefix = undefined,
+  T = Resources,
+> = N extends (keyof T)[] | Readonly<(keyof T)[]>
+  ? NormalizeMulti<T, N[number]>
+  : N extends keyof T
+  ? TKPrefix extends undefined
+    ? Normalize<T[N]>
+    : NormalizeWithKeyPrefix<T[N], TKPrefix>
+  : string;
+
+export interface WithT<N extends Namespace = DefaultNamespace> {
   // Expose parameterized t in the i18next interface hierarchy
-  t: TFunction;
+  t: TFunction<N>;
 }
 
-/**
- * Object returned from t() function when passed returnDetails: true option.
- */
 export type TFunctionDetailedResult<T = string> = {
   /**
    * The plain used key
@@ -725,65 +814,102 @@ export type TFunctionDetailedResult<T = string> = {
    */
   usedNS: string;
 };
-export type TFunctionResult =
+
+type TypeOptionsFallback<TranslationValue, Option, MatchingValue> = Option extends false
+  ? TranslationValue extends MatchingValue
+    ? string
+    : TranslationValue
+  : TranslationValue;
+
+/**
+ * Checks if user has enabled `returnEmptyString` and `returnNull` options to retrieve correct values.
+ */
+export type NormalizeByTypeOptions<
+  TranslationValue,
+  R = TypeOptionsFallback<TranslationValue, TypeOptions['returnEmptyString'], ''>,
+> = TypeOptionsFallback<R, TypeOptions['returnNull'], null>;
+
+type StringIfPlural<T> = TypeOptions['jsonFormat'] extends 'v4'
+  ? T extends `${string}_${PluralSuffix}`
+    ? string
+    : never
+  : never;
+
+type NormalizeReturn<
+  T,
+  V,
+  S extends string | false = TypeOptions['keySeparator'],
+> = V extends keyof T
+  ? NormalizeByTypeOptions<T[V]>
+  : S extends false
+  ? V
+  : V extends `${infer K}${S}${infer R}`
+  ? K extends keyof T
+    ? NormalizeReturn<T[K], R>
+    : never
+  : StringIfPlural<keyof T>;
+
+type NormalizeMultiReturn<T, V> = V extends `${infer N}:${infer R}`
+  ? N extends keyof T
+    ? NormalizeReturn<T[N], R>
+    : never
+  : never;
+
+export type DefaultTFuncReturn =
   | string
   | object
   | TFunctionDetailedResult
   | Array<string | object>
   | undefined
   | null;
-export type TFunctionKeys = string | TemplateStringsArray;
-export interface TFunction {
-  // basic usage
+
+export type TFuncReturn<
+  N,
+  TKeys,
+  TDefaultResult,
+  TKPrefix = undefined,
+  T = Resources,
+> = N extends (keyof T)[]
+  ? NormalizeMultiReturn<T, TKeys>
+  : N extends keyof T
+  ? TKPrefix extends undefined
+    ? NormalizeReturn<T[N], TKeys>
+    : NormalizeReturn<T[N], KeysWithSeparator<TKPrefix, TKeys>>
+  : TDefaultResult;
+
+export interface TFunction<N extends Namespace = DefaultNamespace, TKPrefix = undefined> {
   <
-    TResult extends TFunctionResult = string,
-    TKeys extends TFunctionKeys = string,
+    TKeys extends TFuncKey<N, TKPrefix> | TemplateStringsArray extends infer A ? A : never,
+    TDefaultResult extends DefaultTFuncReturn,
     TInterpolationMap extends object = StringMap,
   >(
     key: TKeys | TKeys[],
-  ): TResult;
+  ): TFuncReturn<N, TKeys, TDefaultResult, TKPrefix>;
   <
-    TResult extends TFunctionResult = TFunctionDetailedResult<object>,
-    TKeys extends TFunctionKeys = string,
-    TInterpolationMap extends object = StringMap,
-  >(
-    key: TKeys | TKeys[],
-    options?: TOptions<TInterpolationMap> & { returnDetails: true; returnObjects: true },
-  ): TResult;
-  <
-    TResult extends TFunctionResult = TFunctionDetailedResult,
-    TKeys extends TFunctionKeys = string,
+    TKeys extends TFuncKey<N, TKPrefix> | TemplateStringsArray extends infer A ? A : never,
+    TDefaultResult extends DefaultTFuncReturn,
     TInterpolationMap extends object = StringMap,
   >(
     key: TKeys | TKeys[],
     options?: TOptions<TInterpolationMap> & { returnDetails: true },
-  ): TResult;
+  ): TFunctionDetailedResult<TFuncReturn<N, TKeys, TDefaultResult, TKPrefix>>;
   <
-    TResult extends TFunctionResult = object,
-    TKeys extends TFunctionKeys = string,
+    TKeys extends TFuncKey<N, TKPrefix> | TemplateStringsArray extends infer A ? A : never,
+    TDefaultResult extends DefaultTFuncReturn,
     TInterpolationMap extends object = StringMap,
   >(
     key: TKeys | TKeys[],
-    options?: TOptions<TInterpolationMap> & { returnObjects: true },
-  ): TResult;
+    options?: TOptions<TInterpolationMap>,
+  ): TFuncReturn<N, TKeys, TDefaultResult, TKPrefix>;
   <
-    TResult extends TFunctionResult = string,
-    TKeys extends TFunctionKeys = string,
-    TInterpolationMap extends object = StringMap,
-  >(
-    key: TKeys | TKeys[],
-    options?: TOptions<TInterpolationMap> | string,
-  ): TResult;
-  // overloaded usage
-  <
-    TResult extends TFunctionResult = string,
-    TKeys extends TFunctionKeys = string,
+    TKeys extends TFuncKey<N, TKPrefix> | TemplateStringsArray extends infer A ? A : never,
+    TDefaultResult extends DefaultTFuncReturn,
     TInterpolationMap extends object = StringMap,
   >(
     key: TKeys | TKeys[],
     defaultValue?: string,
     options?: TOptions<TInterpolationMap> | string,
-  ): TResult;
+  ): TFuncReturn<N, TKeys, TDefaultResult, TKPrefix>;
 }
 
 export interface Resource {
@@ -965,14 +1091,25 @@ export interface Modules {
 export interface Newable<T> {
   new (...args: any[]): T;
 }
-
 export interface NewableModule<T extends Module> extends Newable<T> {
   type: T['type'];
 }
 
+type Callback = (error: any, t: TFunction) => void;
+
+/**
+ * Uses similar args as the t function and returns true if a key exists.
+ */
+export interface ExistsFunction<
+  TKeys extends string = string,
+  TInterpolationMap extends object = StringMap,
+> {
+  (key: TKeys | TKeys[], options?: TOptions<TInterpolationMap>): boolean;
+}
+
 export interface i18n {
   // Expose parameterized t in the i18next interface hierarchy
-  t: TFunction;
+  t: TFunction<FallbackOrNS<string>[]>;
 
   /**
    * The default of the i18next module is an i18next instance ready to be initialized by calling init.
@@ -1017,7 +1154,7 @@ export interface i18n {
   /**
    * Returns a resource data by language.
    */
-  getDataByLanguage(lng: string): { translation: { [key: string]: string } } | undefined;
+  getDataByLanguage(lng: string): { [key: string]: { [key: string]: string } } | undefined;
 
   /**
    * Returns a t function that defaults to given language or namespace.
@@ -1118,7 +1255,10 @@ export interface i18n {
   /**
    * Gets fired on loaded resources.
    */
-  on(event: 'loaded', callback: (loaded: { [language: string]: readonly string[] }) => void): void;
+  on(
+    event: 'loaded',
+    callback: (loaded: { [language: string]: { [namespace: string]: boolean } }) => void,
+  ): void;
 
   /**
    * Gets fired if loading resources failed.

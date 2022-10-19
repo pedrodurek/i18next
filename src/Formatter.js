@@ -20,12 +20,15 @@ function parseFormatStr(formatStr) {
       opts.forEach((opt) => {
         if (!opt) return;
         const [key, ...rest] = opt.split(':');
-        const val = rest.join(':');
+        const val = rest
+          .join(':')
+          .trim()
+          .replace(/^'+|'+$/g, ''); // trim and replace ''
 
-        if (!formatOptions[key.trim()]) formatOptions[key.trim()] = val.trim();
-        if (val.trim() === 'false') formatOptions[key.trim()] = false;
-        if (val.trim() === 'true') formatOptions[key.trim()] = true;
-        if (!isNaN(val.trim())) formatOptions[key.trim()] = parseInt(val.trim(), 10);
+        if (!formatOptions[key.trim()]) formatOptions[key.trim()] = val;
+        if (val === 'false') formatOptions[key.trim()] = false;
+        if (val === 'true') formatOptions[key.trim()] = true;
+        if (!isNaN(val)) formatOptions[key.trim()] = parseInt(val, 10);
       });
     }
   }
@@ -36,27 +39,45 @@ function parseFormatStr(formatStr) {
   };
 }
 
+function createCachedFormatter(fn) {
+  const cache = {};
+  return function invokeFormatter(val, lng, options) {
+    const key = lng + JSON.stringify(options);
+    let formatter = cache[key];
+    if (!formatter) {
+      formatter = fn(lng, options);
+      cache[key] = formatter;
+    }
+    return formatter(val);
+  };
+}
+
 class Formatter {
   constructor(options = {}) {
     this.logger = baseLogger.create('formatter');
 
     this.options = options;
     this.formats = {
-      number: (val, lng, options) => {
-        return new Intl.NumberFormat(lng, options).format(val);
-      },
-      currency: (val, lng, options) => {
-        return new Intl.NumberFormat(lng, { ...options, style: 'currency' }).format(val);
-      },
-      datetime: (val, lng, options) => {
-        return new Intl.DateTimeFormat(lng, { ...options }).format(val);
-      },
-      relativetime: (val, lng, options) => {
-        return new Intl.RelativeTimeFormat(lng, { ...options }).format(val, options.range || 'day');
-      },
-      list: (val, lng, options) => {
-        return new Intl.ListFormat(lng, { ...options }).format(val);
-      },
+      number: createCachedFormatter((lng, options) => {
+        const formatter = new Intl.NumberFormat(lng, options);
+        return (val) => formatter.format(val);
+      }),
+      currency: createCachedFormatter((lng, options) => {
+        const formatter = new Intl.NumberFormat(lng, { ...options, style: 'currency' });
+        return (val) => formatter.format(val);
+      }),
+      datetime: createCachedFormatter((lng, options) => {
+        const formatter = new Intl.DateTimeFormat(lng, { ...options });
+        return (val) => formatter.format(val);
+      }),
+      relativetime: createCachedFormatter((lng, options) => {
+        const formatter = new Intl.RelativeTimeFormat(lng, { ...options });
+        return (val) => formatter.format(val, options.range || 'day');
+      }),
+      list: createCachedFormatter((lng, options) => {
+        const formatter = new Intl.ListFormat(lng, { ...options });
+        return (val) => formatter.format(val);
+      }),
     };
     this.init(options);
   }
@@ -72,6 +93,10 @@ class Formatter {
 
   add(name, fc) {
     this.formats[name.toLowerCase().trim()] = fc;
+  }
+
+  addCached(name, fc) {
+    this.formats[name.toLowerCase().trim()] = createCachedFormatter(fc);
   }
 
   format(value, format, lng, options) {
